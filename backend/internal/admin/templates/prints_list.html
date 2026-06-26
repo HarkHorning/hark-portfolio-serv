@@ -1,0 +1,57 @@
+{{define "content"}}
+<div class="page-actions">
+  <h1>Prints</h1>
+  <a href="/admin/prints/new" class="btn btn-primary">+ Add Print</a>
+</div>
+
+{{if .Error}}<div class="error-msg">{{.Error}}</div>{{end}}
+
+<table>
+  <thead>
+    <tr>
+      <th>Image</th>
+      <th>Title</th>
+      <th>Sizes</th>
+      <th>Published</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Prints}}
+  <tr>
+    <td><img src="{{.DisplayURL}}" style="width:50px;height:50px;object-fit:cover;border-radius:3px;"></td>
+    <td><strong>{{.Title}}</strong></td>
+    <td>
+      {{range .Sizes}}
+        <span class="tag">{{.Size}} — {{dollars .PriceCents}}
+          {{if .Sold}} · Sold{{else if eq .QuantityInStock 0}} · Out of stock{{end}}
+        </span>
+      {{else}}
+        <span style="color:#888;font-size:0.8rem;">No sizes yet</span>
+      {{end}}
+    </td>
+    <td>
+      <form method="POST" action="/admin/prints/{{.Id}}/publish" style="display:inline;">
+        {{if .Visible}}
+          <input type="hidden" name="visible" value="false">
+          <button type="submit" class="btn btn-sm">Unpublish</button>
+        {{else}}
+          <input type="hidden" name="visible" value="true">
+          <button type="submit" class="btn btn-sm btn-primary">Publish</button>
+        {{end}}
+      </form>
+    </td>
+    <td style="white-space:nowrap;">
+      <a href="/admin/prints/{{.Id}}/edit" class="btn btn-sm">Edit</a>
+      <form method="POST" action="/admin/prints/{{.Id}}/archive" style="display:inline;"
+            onsubmit="return confirm('Archive this print?')">
+        <button type="submit" class="btn btn-sm btn-danger">Archive</button>
+      </form>
+    </td>
+  </tr>
+  {{else}}
+  <tr><td colspan="6" style="text-align:center;color:#888;padding:2rem;">No prints yet.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

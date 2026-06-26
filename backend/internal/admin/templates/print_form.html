@@ -1,0 +1,40 @@
+{{define "content"}}
+<div class="page-actions">
+  <h1>{{if .Print}}Edit Print{{else}}New Print{{end}}</h1>
+  <a href="/admin/prints" class="btn">← Back</a>
+</div>
+
+{{if .Error}}<div class="error-msg">{{.Error}}</div>{{end}}
+
+{{if .Print}}
+  <div class="form-card" style="margin-bottom:1.5rem;">
+    <h2>Artwork</h2>
+    <p style="margin-top:0.5rem;font-size:0.9rem;color:#333;">{{.Print.Title}}</p>
+  </div>
+
+  <h2>Sizes</h2>
+  {{template "print_size_list.html" (dict "PrintID" .Print.Id "Sizes" .Print.Sizes)}}
+
+  <div class="form-card" style="margin-top:1.5rem;">
+    <h2>Display Images</h2>
+    <p style="margin-top:0.25rem;margin-bottom:1rem;font-size:0.85rem;color:#888;">Select which images appear on this print's page. If none selected, falls back to the artwork's display selection.</p>
+    <div id="print-image-list">
+      {{template "print_image_list.html" (dict "PrintID" .Print.Id "Images" .ArtImages "DisplayImageIDs" .DisplayImageIDs)}}
+    </div>
+  </div>
+
+{{else}}
+  <form method="POST" action="/admin/prints" class="form-card">
+    <div class="field">
+      <label>Artwork *</label>
+      <select name="art_tile_id" required>
+        <option value="">— Select artwork —</option>
+        {{range .Arts}}
+        <option value="{{.Id}}">{{.Title}}</option>
+        {{end}}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Print →</button>
+  </form>
+{{end}}
+{{end}}

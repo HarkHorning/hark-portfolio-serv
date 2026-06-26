@@ -1,0 +1,31 @@
+{{define "print_image_list.html"}}
+{{$printID := .PrintID}}
+{{$images := .Images}}
+{{$displayIDs := .DisplayImageIDs}}
+{{if $images}}
+<div class="image-grid">
+  {{range $images}}
+  <div class="image-thumb">
+    <img src="{{.URL}}" alt="{{.Filename}}">
+    <span class="variant-label">{{.Variant}}</span>
+    <label class="display-check">
+      <input type="checkbox" name="display_image_ids" value="{{.Id}}"
+        {{if contains $displayIDs .Id}}checked{{end}}>
+      Show
+    </label>
+  </div>
+  {{end}}
+</div>
+<button type="button"
+        hx-post="/admin/prints/{{$printID}}/display-images"
+        hx-include="[name='display_image_ids']"
+        hx-target="#print-image-list"
+        hx-swap="innerHTML"
+        class="btn btn-primary"
+        style="margin-top:1rem;">
+  Save Display Selection
+</button>
+{{else}}
+<p style="color:#888;font-size:0.85rem;">No images on the linked artwork yet.</p>
+{{end}}
+{{end}}

@@ -1,0 +1,66 @@
+{{define "print_size_list.html"}}
+<div id="size-list">
+  {{if .Sizes}}
+  <table style="margin-bottom:1.25rem;">
+    <thead>
+      <tr>
+        <th>Size</th>
+        <th>Price (cents)</th>
+        <th>Quantity</th>
+        <th>Sold</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Sizes}}
+    <tr>
+      <td><input type="text" name="size" value="{{.Size}}" style="width:70px;" required></td>
+      <td><input type="number" name="price_cents" value="{{.PriceCents}}" style="width:90px;" required></td>
+      <td><input type="number" name="quantity_in_stock" value="{{.QuantityInStock}}" min="0" style="width:70px;"></td>
+      <td>
+        <select name="sold" style="width:70px;">
+          <option value="false" {{if not .Sold}}selected{{end}}>No</option>
+          <option value="true"  {{if .Sold}}selected{{end}}>Yes</option>
+        </select>
+      </td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="btn btn-sm btn-primary"
+                hx-post="/admin/prints/{{$.PrintID}}/sizes/{{.Id}}"
+                hx-include="closest tr"
+                hx-target="#size-list" hx-swap="outerHTML">Save</button>
+        <button type="button" class="btn btn-sm btn-danger"
+                hx-post="/admin/prints/{{$.PrintID}}/sizes/{{.Id}}/delete"
+                hx-target="#size-list" hx-swap="outerHTML"
+                hx-confirm="Remove this size?">Remove</button>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="color:#888;font-size:0.85rem;margin-bottom:1rem;">No sizes yet — add one below.</p>
+  {{end}}
+
+  <div class="form-card" style="max-width:100%;margin-top:0;">
+    <h2>Add Size</h2>
+    <form hx-post="/admin/prints/{{.PrintID}}/sizes"
+          hx-target="#size-list" hx-swap="outerHTML"
+          method="POST" action="/admin/prints/{{.PrintID}}/sizes"
+          style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;">
+      <div class="field" style="margin:0;">
+        <label>Size</label>
+        <input type="text" name="size" placeholder="e.g. 8x10" required style="width:100px;">
+      </div>
+      <div class="field" style="margin:0;">
+        <label>Price (cents)</label>
+        <input type="number" name="price_cents" placeholder="e.g. 4500" required style="width:110px;">
+      </div>
+      <div class="field" style="margin:0;">
+        <label>Quantity</label>
+        <input type="number" name="quantity_in_stock" value="0" min="0" style="width:80px;">
+      </div>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+  </div>
+</div>
+{{end}}

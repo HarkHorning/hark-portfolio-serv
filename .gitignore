@@ -1,0 +1,18 @@
+db_data/
+uploads/
+.env
+
+# Backend
+backend/server
+backend/.env
+*.log
+
+# Frontend
+frontend/node_modules/
+frontend/build/
+frontend/.svelte-kit/
+frontend/.env
+
+# OS files
+.DS_Store
+Thumbs.db
