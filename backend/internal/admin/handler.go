@@ -305,21 +305,21 @@ func (h *Handler) DeleteImage(c *gin.Context) {
 	imageID := paramInt(c, "imageId")
 	artID := paramInt(c, "id")
 
-	// Get URL from DB before deleting record
-	var imgURL string
-	_ = h.repo.DB().Get(&imgURL, "SELECT url FROM images WHERE id = ?", imageID)
-
-	_, err := h.repo.AdminDeleteImage(imageID)
+	// AdminDeleteImage already queries the database for the filename,
+	// deletes the database row, and returns the filename to us.
+	filename, err := h.repo.AdminDeleteImage(imageID)
 	if err != nil {
+		slog.Error("admin: delete image record", "error", err)
 		c.String(http.StatusInternalServerError, "delete failed")
 		return
 	}
 
-	// Delete file from disk
-	if imgURL != "" {
-		filename := filepath.Base(imgURL)
+	// Now delete the physical file from the local disk
+	if filename != "" {
 		diskPath := filepath.Join(h.localStoragePath, filename)
-		_ = os.Remove(diskPath)
+		if err := os.Remove(diskPath); err != nil {
+			slog.Warn("admin: could not delete local file", "path", diskPath, "error", err)
+		}
 	}
 
 	imgs, _ := h.repo.AdminImagesByArtID(artID)
