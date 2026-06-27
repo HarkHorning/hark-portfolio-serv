@@ -21,7 +21,7 @@ type AdminConfig struct {
 }
 
 type StorageConfig struct {
-	LocalStoragePath string // Path on the Ubuntu server (e.g., /var/lib/portfolio/images)
+	LocalStoragePath string
 }
 
 type ServerConfig struct {
@@ -37,6 +37,7 @@ type DatabaseConfig struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	SeedData        bool // <--- ADD THIS LINE
 }
 
 func Load() Config {
@@ -46,7 +47,7 @@ func Load() Config {
 			Port: getEnv("PORT", "8080"),
 		},
 		Database: DatabaseConfig{
-			Host:            getEnv("DB_HOST", "mysql"), // Default to the docker service name
+			Host:            getEnv("DB_HOST", "mysql"),
 			Port:            getEnvInt("DB_PORT", 3306),
 			User:            getEnv("DB_USER", "root"),
 			Password:        getEnv("DB_PASSWORD", "your_secure_password"),
@@ -54,6 +55,7 @@ func Load() Config {
 			MaxOpenConns:    25,
 			MaxIdleConns:    5,
 			ConnMaxLifetime: 5 * time.Minute,
+			SeedData:        getEnvBool("DB_SEED_DATA", false), // <--- ADD THIS LINE
 		},
 		Admin: AdminConfig{
 			Username:      getEnv("ADMIN_USERNAME", "admin"),
@@ -77,6 +79,16 @@ func getEnvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
+		}
+	}
+	return fallback
+}
+
+// ADD THIS HELPER FUNCTION
+func getEnvBool(key string, fallback bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
 		}
 	}
 	return fallback
