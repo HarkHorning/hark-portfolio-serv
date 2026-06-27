@@ -1,18 +1,16 @@
 package admin
 
 import (
-	"context"
 	"fmt"
 	"html/template"
-	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
-	"cloud.google.com/go/storage"
 	"github.com/HarkHorning/portfolio-go-svelte-azure-k8/internal/config"
 	"github.com/HarkHorning/portfolio-go-svelte-azure-k8/internal/models"
 	"github.com/HarkHorning/portfolio-go-svelte-azure-k8/internal/repo"
@@ -21,12 +19,11 @@ import (
 )
 
 type Handler struct {
-	repo          *repo.Repo
-	tmplFS        fs.FS
-	adminUsername string
-	passwordHash  []byte
-	gcsBucket     string
-	gcsClient     *storage.Client
+	repo             *repo.Repo
+	tmplFS           fs.FS
+	adminUsername    string
+	passwordHash     []byte
+	localStoragePath string // Added for Home Server
 }
 
 func NewHandler(r *repo.Repo, tmplFS fs.FS, cfg config.Config) (*Handler, error) {
@@ -37,20 +34,12 @@ func NewHandler(r *repo.Repo, tmplFS fs.FS, cfg config.Config) (*Handler, error)
 		return nil, fmt.Errorf("could not hash admin password: %w", err)
 	}
 
-	ctx := context.Background()
-	gcsClient, err := storage.NewClient(ctx)
-	if err != nil {
-		slog.Warn("GCS client unavailable — image upload disabled", "error", err)
-		gcsClient = nil
-	}
-
 	return &Handler{
-		repo:          r,
-		tmplFS:        tmplFS,
-		adminUsername: cfg.Admin.Username,
-		passwordHash:  hash,
-		gcsBucket:     cfg.Storage.Bucket,
-		gcsClient:     gcsClient,
+		repo:             r,
+		tmplFS:           tmplFS,
+		adminUsername:    cfg.Admin.Username,
+		passwordHash:     hash,
+		localStoragePath: cfg.Storage.LocalStoragePath,
 	}, nil
 }
 
@@ -279,28 +268,16 @@ func (h *Handler) PostImageUpload(c *gin.Context) {
 		return
 	}
 
-	file, header, err := c.Request.FormFile("image")
+	header, err := c.FormFile("image")
 	if err != nil {
 		c.String(http.StatusBadRequest, "no file uploaded")
 		return
 	}
-	defer file.Close()
 
-	if err := validateImageFile(file, header.Size); err != nil {
-		c.String(http.StatusBadRequest, err.Error())
-		return
-	}
-	file.Seek(0, io.SeekStart)
-
-	if h.gcsClient == nil {
-		c.String(http.StatusServiceUnavailable, "image storage not configured")
-		return
-	}
-
-	objectName := fmt.Sprintf("art/%s/%d-%d-%s", variant, artID, time.Now().UnixMilli(), header.Filename)
-	url, err := h.uploadToGCS(c.Request.Context(), objectName, file, header.Header.Get("Content-Type"))
+	// Save to local filesystem using helper in blob.go
+	url, err := h.repo.SaveLocalFile(header, h.localStoragePath)
 	if err != nil {
-		slog.Error("admin: gcs upload", "error", err)
+		slog.Error("admin: local upload", "error", err)
 		c.String(http.StatusInternalServerError, "upload failed")
 		return
 	}
@@ -328,14 +305,21 @@ func (h *Handler) DeleteImage(c *gin.Context) {
 	imageID := paramInt(c, "imageId")
 	artID := paramInt(c, "id")
 
-	filename, err := h.repo.AdminDeleteImage(imageID)
+	// Get URL from DB before deleting record
+	var imgURL string
+	_ = h.repo.DB().Get(&imgURL, "SELECT url FROM images WHERE id = ?", imageID)
+
+	_, err := h.repo.AdminDeleteImage(imageID)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "delete failed")
 		return
 	}
 
-	if h.gcsClient != nil && filename != "" {
-		_ = h.gcsClient.Bucket(h.gcsBucket).Object(filename).Delete(c.Request.Context())
+	// Delete file from disk
+	if imgURL != "" {
+		filename := filepath.Base(imgURL)
+		diskPath := filepath.Join(h.localStoragePath, filename)
+		_ = os.Remove(diskPath)
 	}
 
 	imgs, _ := h.repo.AdminImagesByArtID(artID)
@@ -376,19 +360,6 @@ func (h *Handler) renderPrintImageList(c *gin.Context, printID int) {
 		"Images":          artImgs,
 		"DisplayImageIDs": displayIDs,
 	})
-}
-
-func (h *Handler) uploadToGCS(ctx context.Context, objectName string, r io.Reader, contentType string) (string, error) {
-	wc := h.gcsClient.Bucket(h.gcsBucket).Object(objectName).NewWriter(ctx)
-	wc.ContentType = contentType
-	if _, err := io.Copy(wc, r); err != nil {
-		wc.Close()
-		return "", err
-	}
-	if err := wc.Close(); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", h.gcsBucket, objectName), nil
 }
 
 // ── Prints ───────────────────────────────────────────────────────────────────
@@ -514,28 +485,15 @@ func (h *Handler) PostSiteContent(c *gin.Context) {
 }
 
 func (h *Handler) PostArtistPhoto(c *gin.Context) {
-	file, header, err := c.Request.FormFile("photo")
+	header, err := c.FormFile("photo")
 	if err != nil {
 		c.String(http.StatusBadRequest, "no file uploaded")
 		return
 	}
-	defer file.Close()
 
-	if err := validateImageFile(file, header.Size); err != nil {
-		c.String(http.StatusBadRequest, err.Error())
-		return
-	}
-	file.Seek(0, io.SeekStart)
-
-	if h.gcsClient == nil {
-		c.String(http.StatusServiceUnavailable, "image storage not configured")
-		return
-	}
-
-	objectName := fmt.Sprintf("profile/artist-%d-%s", time.Now().UnixMilli(), header.Filename)
-	url, err := h.uploadToGCS(c.Request.Context(), objectName, file, header.Header.Get("Content-Type"))
+	url, err := h.repo.SaveLocalFile(header, h.localStoragePath)
 	if err != nil {
-		slog.Error("admin: gcs upload artist photo", "error", err)
+		slog.Error("admin: save artist photo", "error", err)
 		c.String(http.StatusInternalServerError, "upload failed")
 		return
 	}
@@ -673,32 +631,4 @@ func parseIDs(ss []string) []int {
 		}
 	}
 	return ids
-}
-
-func validateImageFile(r io.Reader, size int64) error {
-	const maxSize = 20 << 20 // 20 MB
-	if size > maxSize {
-		return fmt.Errorf("file too large (max 20 MB)")
-	}
-	magic := make([]byte, 12)
-	if _, err := io.ReadFull(r, magic); err != nil {
-		return fmt.Errorf("could not read file")
-	}
-	if isJPEG(magic) || isPNG(magic) || isWEBP(magic) {
-		return nil
-	}
-	return fmt.Errorf("unsupported file type: only JPEG, PNG, and WebP are allowed")
-}
-
-func isJPEG(b []byte) bool { return len(b) >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF }
-func isPNG(b []byte) bool {
-	return len(b) >= 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47
-}
-func isWEBP(b []byte) bool {
-	return len(b) >= 12 && string(b[0:4]) == "RIFF" && string(b[8:12]) == "WEBP"
-}
-
-func gcsObjectName(url, bucket string) string {
-	prefix := fmt.Sprintf("https://storage.googleapis.com/%s/", bucket)
-	return strings.TrimPrefix(url, prefix)
 }
