@@ -29,6 +29,7 @@ func Routes(db *sqlx.DB, cfg config.Config) *gin.Engine {
 
 	handle := NewHandler(*sqlResource)
 
+	router.Static("/uploads", cfg.Storage.LocalStoragePath)
 	router.GET("/health", handle.HealthCheck)
 	router.GET("/ready", handle.ReadyCheck)
 
