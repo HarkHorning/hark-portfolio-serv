@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog" // <-- Make sure this is in your imports
 	"os"
 	"strconv"
 	"time"
@@ -37,7 +38,7 @@ type DatabaseConfig struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
-	SeedData        bool // <--- ADD THIS LINE
+	SeedData        bool
 }
 
 func Load() Config {
@@ -55,7 +56,7 @@ func Load() Config {
 			MaxOpenConns:    25,
 			MaxIdleConns:    5,
 			ConnMaxLifetime: 5 * time.Minute,
-			SeedData:        getEnvBool("DB_SEED_DATA", false), // <--- ADD THIS LINE
+			SeedData:        getEnvBool("DB_SEED_DATA", false),
 		},
 		Admin: AdminConfig{
 			Username:      getEnv("ADMIN_USERNAME", "admin"),
@@ -66,6 +67,17 @@ func Load() Config {
 			LocalStoragePath: getEnv("STORAGE_PATH", "/app/data/images"),
 		},
 	}
+}
+
+// ADD THIS FUNCTION - It was missing and causing the build to fail
+func SetupLogging(env string) {
+	var handler slog.Handler
+	if env == "production" {
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	}
+	slog.SetDefault(slog.New(handler))
 }
 
 func getEnv(key, fallback string) string {
@@ -84,7 +96,6 @@ func getEnvInt(key string, fallback int) int {
 	return fallback
 }
 
-// ADD THIS HELPER FUNCTION
 func getEnvBool(key string, fallback bool) bool {
 	if v := os.Getenv(key); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
