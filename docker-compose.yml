@@ -12,6 +12,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
   backend:
     build: ./backend
     restart: always
@@ -21,21 +22,26 @@ services:
     environment:
       - ENVIRONMENT=production
       - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
       - DB_PASSWORD=${DB_ROOT_PASSWORD}
       - DB_NAME=${DB_NAME}
       - STORAGE_PATH=/app/data/images
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET}
-      - CORS_ORIGIN=https://harkhorning.com
+      - CORS_ORIGIN=https://${DOMAIN}
     volumes:
       - ./uploads:/app/data/images
 
   frontend:
     build: ./frontend
     restart: always
+    depends_on:
+      - backend
     environment:
-      - BACKEND_URL=https://${DOMAIN}
+      # Crucial: talk to backend internally via Docker network
+      - BACKEND_URL=http://backend:8080
     ports:
       - "3000:3000"
 
@@ -44,4 +50,5 @@ services:
     restart: always
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TOKEN}
+    # Link to other containers so it can resolve 'frontend' and 'backend'
     command: tunnel --no-autoupdate run
