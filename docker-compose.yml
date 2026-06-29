@@ -27,6 +27,7 @@ services:
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET}
+      - CORS_ORIGIN=https://harkhorning.com
     volumes:
       - ./uploads:/app/data/images
 
