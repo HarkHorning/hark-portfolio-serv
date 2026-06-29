@@ -18,6 +18,7 @@ RUN npm run build
 
 # Stage 3: Runtime
 FROM nginx:alpine AS runtime
+RUN apk add --no-cache mailcap 
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=builder /app/build /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
